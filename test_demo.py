@@ -20,17 +20,17 @@ def select_model(args, device):
     model_id = args.model_id
     if model_id == 2:
         # SGN test
-        from models.megnr_ensemble_model import HAUformer
+        from models.team20_megnr import HAUformer
         name, data_range = f"{model_id:02}_megnr_U_HAT_large", 1.0
-        model_path = os.path.join('model_zoo', 'megnr_ensemble_model.pth')
+        model_path = os.path.join('model_zoo', 'team20_megnr.pth')
         model = HAUformer()
 
         state_dict = torch.load(model_path, map_location="cpu")["hau"]
         model.load_state_dict(state_dict, strict=True)
     elif model_id == 0:
-        from models.megnr_ensemble_model import Restormer
+        from models.team20_megnr import Restormer
         name, data_range = f"{model_id:02}_megnr_restormer_arch", 1.0
-        model_path = os.path.join('model_zoo', 'megnr_ensemble_model.pth')
+        model_path = os.path.join('model_zoo', 'team20_megnr.pth')
         model = Restormer()
 
         state_dict = torch.load(model_path)["restormer"]["state_dict"]
@@ -40,9 +40,9 @@ def select_model(args, device):
                 new_state_dict[k.replace("model.", "")] = v
         model.load_state_dict(state_dict, strict=True)
     elif model_id == 1:
-        from models.megnr_ensemble_model import KBNet_s
+        from models.team20_megnr import KBNet_s
         name, data_range = f"{model_id:02}_megnr_kbnet_arch", 1.0
-        model_path = os.path.join('model_zoo', 'megnr_ensemble_model.pth')
+        model_path = os.path.join('model_zoo', 'team20_megnr.pth')
         model = KBNet_s()
 
         state_dict = torch.load(model_path)["kbnet"]
