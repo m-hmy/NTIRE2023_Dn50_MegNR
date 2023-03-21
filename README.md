@@ -1,5 +1,6 @@
 # [NTIRE 2023 Challenge on Image Denoising](https://cvlai.net/ntire/2023/) @ [CVPR 2023](https://cvpr2023.thecvf.com/)
 
+This is our adding diffusion model version
 ## How to test the model?
 
 1. `git clone https://github.com/m-hmy/NTIRE2023_Dn50_MegNR.git`
@@ -14,6 +15,6 @@ because the pre-train weight is a bit large, so you should download from follow 
 
 `mkdir ./model_zoo`
 
-pre-train weight link: https://drive.google.com/file/d/18R5k6g_bpsRu8kXB2eHcX_4mhfZzlpKn/view?usp=sharing
+pre-train weight link: https://drive.google.com/file/d/1-SZHKS3zLecfBEckWlLX7WbUB6kAeHzr/view?usp=sharing
 
 or you can download with shell script `./download_model.sh`
