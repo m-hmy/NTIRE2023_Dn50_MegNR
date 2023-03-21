@@ -17,3 +17,11 @@ because the pre-train weight is a bit large, so you should download from follow 
 pre-train weight link: https://drive.google.com/file/d/18R5k6g_bpsRu8kXB2eHcX_4mhfZzlpKn/view?usp=sharing
 
 or you can download with shell script `./download_model.sh`
+
+## diffusion model version
+ 
+If want to try our another ensemble version with diffusion model, please
+
+`git checkout diffusion_midpm`
+
+then follow the instructions in README in **diffusion_midpm**  branch
