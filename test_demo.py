@@ -18,19 +18,19 @@ def select_model(args, device):
     # Model ID is assigned according to the order of the submissions.
     # Different networks are trained with input range of either [0,1] or [0,255]. The range is determined manually.
     model_id = args.model_id
-    if model_id == 2:
+    if model_id == 3:
         # SGN test
         from models.team20_megnr import HAUformer
         name, data_range = f"{model_id:02}_megnr_U_HAT_large", 1.0
-        model_path = os.path.join('model_zoo', 'team20_megnr.pth')
+        model_path = os.path.join('model_zoo', 'team20_megnr_v2.pth')
         model = HAUformer()
 
         state_dict = torch.load(model_path, map_location="cpu")["hau"]
         model.load_state_dict(state_dict, strict=True)
-    elif model_id == 0:
+    elif model_id == 1:
         from models.team20_megnr import Restormer
         name, data_range = f"{model_id:02}_megnr_restormer_arch", 1.0
-        model_path = os.path.join('model_zoo', 'team20_megnr.pth')
+        model_path = os.path.join('model_zoo', 'team20_megnr_v2.pth')
         model = Restormer()
 
         state_dict = torch.load(model_path)["restormer"]["state_dict"]
@@ -39,10 +39,10 @@ def select_model(args, device):
             if k.find("model.") >= 0:
                 new_state_dict[k.replace("model.", "")] = v
         model.load_state_dict(state_dict, strict=True)
-    elif model_id == 1:
+    elif model_id == 2:
         from models.team20_megnr import KBNet_s
         name, data_range = f"{model_id:02}_megnr_kbnet_arch", 1.0
-        model_path = os.path.join('model_zoo', 'team20_megnr.pth')
+        model_path = os.path.join('model_zoo', 'team20_megnr_v2.pth')
         model = KBNet_s()
 
         state_dict = torch.load(model_path)["kbnet"]
@@ -59,6 +59,32 @@ def select_model(args, device):
     #     name, data_range = f"{model_id:02}_megnr_kbnet_arch", 1.0
     #     model_path = os.path.join('model_zoo', 'team00_sgn.ckpt')
     #     model = KBNet_s()
+    elif model_id == 0:
+        from models.team20_megnr import Unet, GaussianDiffusion, MIDPM
+        name, data_range = f"{model_id:02}_megnr_midpm", 1.0
+        model_path = os.path.join('model_zoo', 'team20_megnr_v2.pth')
+        model_unet = Unet(dim=64, dim_mults=(1, 2, 4, 8)).cuda()
+
+        diffusion = GaussianDiffusion(
+            model_unet,
+            image_size=256,
+            timesteps=1000,  # number of steps
+            sampling_timesteps=
+            10,  # number of sampling timesteps (using ddim for faster inference [see citation for ddim paper])
+            loss_type='l1',  # L1 or L2
+            objective='pred_x0',
+            # p2_loss_weight_gamma=1.,
+        )
+
+        model = MIDPM(
+            diffusion,
+            ema_decay=0.995,  # exponential moving average decay
+        )
+        model.load(model_path)
+        tile = None
+
+        return model, name, data_range, tile
+
     else:
         raise NotImplementedError(f"Model {model_id} is not implemented.")
 
@@ -225,7 +251,7 @@ def rotate_re(image, mode):
     return out
 
 
-def inference(net, img, pch_size=256, data_range=1):
+def inference(net, img, pch_size=256, data_range=1, model_name = ""):
     """
     model inference
     """
@@ -266,7 +292,10 @@ def inference(net, img, pch_size=256, data_range=1):
                     # pch_in_temp = pch_in
                     # pch_in_temp = torch.FloatTensor(pch_in_temp.copy()).cuda()  # .copy get a contiguous array
                     # print(pch_in.shape)
-                    pch_restored_temp = nndenoise_model(pch_in_temp).cpu().detach().numpy()
+                    if "midpm" in model_name:
+                        pch_restored_temp = nndenoise_model(pch_in_temp, 730).cpu().detach().numpy()
+                    else:
+                        pch_restored_temp = nndenoise_model(pch_in_temp).cpu().detach().numpy()
                     print(pch_in_temp.shape, pch_restored_temp.shape)
                     pch_out.append(pch_restored_temp)
                     # print(pch_restored.shape)
@@ -305,6 +334,7 @@ def run(model, model_name, data_range, tile, logger, device, args, mode="test"):
 
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
+    print(model_name)
 
     for i, (img_noisy, img_hr) in enumerate(data_path):
         # print(img_noisy)
@@ -313,7 +343,6 @@ def run(model, model_name, data_range, tile, logger, device, args, mode="test"):
         # (1) img_noisy
         # --------------------------------
         img_name, ext = os.path.splitext(os.path.basename(img_hr))
-        print(img_noisy)
         img_noisy = util.imread_uint(img_noisy, n_channels=3)
         # print(img_noisy.shape)
         # img_noisy = util.uint2tensor4(img_noisy, data_range)
@@ -324,7 +353,7 @@ def run(model, model_name, data_range, tile, logger, device, args, mode="test"):
         # --------------------------------
         start.record()
         # img_dn = forward(img_noisy, model, tile)
-        img_dn = inference(model, img_noisy, data_range = data_range)
+        img_dn = inference(model, img_noisy, data_range = data_range, model_name = model_name)
         end.record()
         torch.cuda.synchronize()
         results[f"{mode}_runtime"].append(start.elapsed_time(end))  # milliseconds
@@ -400,7 +429,7 @@ def main(args):
     # --------------------------------
     save_path_list = []
     temp_mode = ""
-    for ei in range(3):
+    for ei in range(4):
         args.model_id = ei
         model, model_name, data_range, tile = select_model(args, device)
         
@@ -434,6 +463,31 @@ def main(args):
 
 
             save_path_list.append(os.path.join(args.save_dir, model_name, temp_mode))
+            if "midpm" in model_name:
+                # del model
+                # gc.collect()
+                # torch.cuda.empty_cache()
+                # continue
+                model = model.model.model
+                input_dim = {"x":torch.FloatTensor(1, 3, 256, 256).cuda(), "time":torch.Tensor(1).cuda()}  # set the input dimension
+                activations, num_conv = get_model_activation(model, input_dim, dict)
+                activations = activations/10**6
+                logger.info("{:>16s} : {:<.4f} [M]".format("#Activations", activations))
+                logger.info("{:>16s} : {:<d}".format("#Conv2d", num_conv))
+
+                flops = get_model_flops(model, input_dim, False, dict)
+                flops = flops/10**9
+                logger.info("{:>16s} : {:<.4f} [G]".format("FLOPs", flops))
+
+                num_parameters = sum(map(lambda x: x.numel(), model.parameters()))
+                num_parameters = num_parameters/10**6
+                logger.info("{:>16s} : {:<.4f} [M]".format("#Params", num_parameters))
+                results[model_name].update({"activations": activations, "num_conv": num_conv, "flops": flops, "num_parameters": num_parameters})
+                del model, input_dim
+                gc.collect()
+                torch.cuda.empty_cache()
+                continue
+
             input_dim = (3, 256, 256)  # set the input dimension
             activations, num_conv = get_model_activation(model, input_dim)
             activations = activations/10**6
@@ -479,7 +533,7 @@ def main(args):
         # --------------------------------
         img_name, ext = os.path.splitext(os.path.basename(img_hr))
         img_list = []
-        for ei in range(3):
+        for ei in range(4):
             img_res_path = os.path.join(save_path_list[ei], img_name + ext) 
             img_res = util.imread_uint(img_res_path, n_channels=3)
             img_res = img_res.squeeze().astype(np.float)
